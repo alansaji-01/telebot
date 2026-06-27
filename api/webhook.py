@@ -1,4 +1,7 @@
 import os
+import json
+from http.server import BaseHTTPRequestHandler
+
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -13,7 +16,7 @@ BOT_TOKEN = os.environ["BOT_TOKEN"]
 AUTO_REPLIES = {
     "hello": "Hey! Alan is currently unavailable. 👋",
     "hi": "Hey! Alan is currently unavailable. 👋",
-    "urgent": "🚨 Alan will be notified.",
+    "urgent": "🚨 Alan will be notified."
 }
 
 DEFAULT_REPLY = (
@@ -34,6 +37,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.lower()
+
     reply = DEFAULT_REPLY
 
     for key, value in AUTO_REPLIES.items():
@@ -51,15 +55,22 @@ application.add_handler(
 )
 
 
-async def handler(request):
-    await application.initialize()
+class handler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        length = int(self.headers["Content-Length"])
+        body = self.rfile.read(length)
 
-    if request.method == "POST":
-        data = await request.json()
-        update = Update.de_json(data, application.bot)
-        await application.process_update(update)
+        update = Update.de_json(json.loads(body), application.bot)
 
-    return {
-        "statusCode": 200,
-        "body": "OK"
-    }
+        import asyncio
+        asyncio.run(application.initialize())
+        asyncio.run(application.process_update(update))
+
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"OK")
+
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Telegram Bot Running")
