@@ -1,6 +1,6 @@
 import os
 import json
-from http.server import BaseHTTPRequestHandler
+import asyncio
 
 from telegram import Update
 from telegram.ext import (
@@ -11,28 +11,32 @@ from telegram.ext import (
     filters,
 )
 
-BOT_TOKEN = os.environ["BOT_TOKEN"]
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 AUTO_REPLIES = {
-    "hello": "Hey! Alan is currently unavailable. 👋",
-    "hi": "Hey! Alan is currently unavailable. 👋",
-    "urgent": "🚨 Alan will be notified."
+    "hello": "👋 Hey! Alan is currently unavailable.",
+    "hi": "👋 Hey! Alan is currently unavailable.",
+    "urgent": "🚨 Alan has been notified.",
 }
 
 DEFAULT_REPLY = (
-    "Hi! I'm Alan's auto-reply bot.\n"
-    "Alan is currently busy and will reply soon."
+    "Hi! I'm Alan's assistant bot.\n"
+    "Alan is currently busy and will reply as soon as possible."
 )
 
 application = Application.builder().token(BOT_TOKEN).build()
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Hello! I'm Alan's assistant bot.")
+    await update.message.reply_text(
+        "👋 Hello! I'm Alan's assistant bot."
+    )
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Send any message and I'll auto-reply.")
+    await update.message.reply_text(
+        "Send me a message and I'll reply automatically."
+    )
 
 
 async def auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -55,22 +59,22 @@ application.add_handler(
 )
 
 
-class handler(BaseHTTPRequestHandler):
-    def do_POST(self):
-        length = int(self.headers["Content-Length"])
-        body = self.rfile.read(length)
+async def process(body):
+    await application.initialize()
 
-        update = Update.de_json(json.loads(body), application.bot)
+    update = Update.de_json(json.loads(body), application.bot)
 
-        import asyncio
-        asyncio.run(application.initialize())
-        asyncio.run(application.process_update(update))
+    await application.process_update(update)
 
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"OK")
+    return {
+        "statusCode": 200,
+        "headers": {
+            "Content-Type": "text/plain"
+        },
+        "body": "OK"
+    }
 
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"Telegram Bot Running")
+
+def handler(request):
+    body = request.get_data(as_text=True)
+    return asyncio.run(process(body))
